@@ -8,6 +8,7 @@
 - O serviço HCR agora usa `-download-poll-timeout 30s`, valor aceito pelo servidor oficial; a tentativa anterior de 120s era rejeitada pelo limite interno de I/O e impedia o serviço de iniciar.
 - HCR não captura mais TLS nem tráfego desconhecido quando ativado em uma porta multiprotocolo; somente frames HCR válidos são encaminhados ao servidor HCR.
 - O relay reduziu buffers TCP e passou a usar frames HCR de 32 KiB para reduzir bufferbloat, ping alto e perda de throughput em redes móveis.
+- O frame HCR voltou para 16 KiB após incompatibilidade observada em algumas rotas/clientes com 32 KiB; a prioridade volta a ser manter a sessão conectada.
 
 ## v3.9.3 - Estabilidade HCR em redes móveis
 

@@ -17,7 +17,8 @@ HCR_SSH_TARGET="127.0.0.1:22"
 # O hcr-server 0.1.29 rejeita valores acima do timeout interno de I/O.
 # 30s é aceito e amplia a janela padrão de 25s sem invalidar a unit.
 HCR_DOWNLOAD_POLL_TIMEOUT="30s"
-HCR_DOWNLOAD_FRAME="32768"
+# 16 KiB é o frame mais compatível com clientes HCR e redes móveis.
+HCR_DOWNLOAD_FRAME="16384"
 HCR_BINARY_CANDIDATES=("${BYPASS_DIR}/hcr-server" "/opt/hcr-server/hcr-server" "/usr/local/bin/hcr-server" "/usr/bin/hcr-server")
 # Fonte pública do binário oficial hcr-server (Linux amd64). Pode ser trocada
 # exportando HCR_SOURCE_URL antes de abrir o menu.
