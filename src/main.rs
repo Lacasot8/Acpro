@@ -127,6 +127,18 @@ async fn handle_client_protocol(
         return handle_multiprotocol_client(client_stream, status, ssh_only, hcr_enabled).await;
     }
 
+    // HCR pode ser habilitado sozinho pela opção H. Nesse modo, somente um
+    // frame HCR válido é encaminhado ao servidor HCR; o restante segue o
+    // fluxo normal da porta sem ligar o dispatcher multiprotocolo.
+    if hcr_enabled
+        && matches!(protocol::detect_from_stream(&client_stream).await?, Protocol::Hcr)
+    {
+        println!("[HCR] Frame detectado em porta sem multiprotocolo; encaminhando ao servidor oficial");
+        return tls::handle_hcr(client_stream)
+            .await
+            .map_err(|e| Error::new(ErrorKind::Other, format!("HCR independente: {e}")));
+    }
+
     if tls_enabled && peek_tls_client_hello(&client_stream).await? {
         println!("[TLS] ClientHello detectado; iniciando passthrough para SSH/VPN local");
         return tls::handle_tls(client_stream)

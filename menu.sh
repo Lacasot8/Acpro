@@ -15,8 +15,8 @@ HCR_PORT="8880"
 HCR_SERVICE="hcr-8880.service"
 HCR_SSH_TARGET="127.0.0.1:22"
 # O hcr-server 0.1.29 rejeita valores acima do timeout interno de I/O.
-# 30s é aceito e amplia a janela padrão de 25s sem invalidar a unit.
-HCR_DOWNLOAD_POLL_TIMEOUT="30s"
+# 20s reduz a espera de polling para evitar resets em operadoras móveis.
+HCR_DOWNLOAD_POLL_TIMEOUT="20s"
 # 16 KiB é o frame mais compatível com clientes HCR e redes móveis.
 HCR_DOWNLOAD_FRAME="16384"
 HCR_BINARY_CANDIDATES=("${BYPASS_DIR}/hcr-server" "/opt/hcr-server/hcr-server" "/usr/local/bin/hcr-server" "/usr/bin/hcr-server")
@@ -591,7 +591,7 @@ hcr_apply_download_frame_tuning() {
     [[ "$HAS_FRAME" == true || "$HAS_POLL" == true ]] || return 0
     grep -Eq '^[[:space:]]*ExecStart=.*hcr-server' "$SERVICE_FILE" || return 0
     if [[ "$HAS_FRAME" == true ]] && grep -Eq "^[[:space:]]*ExecStart=.*-max-download-frame[[:space:]]+${HCR_DOWNLOAD_FRAME}([[:space:]]|$)" "$SERVICE_FILE" &&
-        { [[ "$HAS_POLL" != true ]] || grep -Eq '^[[:space:]]*ExecStart=.*-download-poll-timeout[[:space:]]+30s([[:space:]]|$)' "$SERVICE_FILE"; }; then
+        { [[ "$HAS_POLL" != true ]] || grep -Eq '^[[:space:]]*ExecStart=.*-download-poll-timeout[[:space:]]+20s([[:space:]]|$)' "$SERVICE_FILE"; }; then
         return 0
     fi
 
@@ -603,12 +603,12 @@ hcr_apply_download_frame_tuning() {
         sed -i -E "/^[[:space:]]*ExecStart=.*hcr-server/ s/[[:space:]]*$/ -max-download-frame ${HCR_DOWNLOAD_FRAME}/" "$SERVICE_FILE"
     fi
     if [[ "$HAS_POLL" == true ]] && grep -Eq '^[[:space:]]*ExecStart=.*download-poll-timeout([=[:space:]]|$)' "$SERVICE_FILE"; then
-        sed -i -E '/^[[:space:]]*ExecStart=.*hcr-server/ { s/(-{1,2}download-poll-timeout)=([^[:space:]]+)/\1 30s/; s/(-{1,2}download-poll-timeout)[[:space:]]+[^[:space:]]+/\1 30s/; }' "$SERVICE_FILE"
+        sed -i -E '/^[[:space:]]*ExecStart=.*hcr-server/ { s/(-{1,2}download-poll-timeout)=([^[:space:]]+)/\1 20s/; s/(-{1,2}download-poll-timeout)[[:space:]]+[^[:space:]]+/\1 20s/; }' "$SERVICE_FILE"
     elif [[ "$HAS_POLL" == true ]]; then
-        sed -i -E '/^[[:space:]]*ExecStart=.*hcr-server/ s/[[:space:]]*$/ -download-poll-timeout 30s/' "$SERVICE_FILE"
+        sed -i -E '/^[[:space:]]*ExecStart=.*hcr-server/ s/[[:space:]]*$/ -download-poll-timeout 20s/' "$SERVICE_FILE"
     fi
     if { [[ "$HAS_FRAME" != true ]] || grep -Eq "^[[:space:]]*ExecStart=.*-max-download-frame[[:space:]]+${HCR_DOWNLOAD_FRAME}([[:space:]]|$)" "$SERVICE_FILE"; } &&
-        { [[ "$HAS_POLL" != true ]] || grep -Eq '^[[:space:]]*ExecStart=.*-download-poll-timeout[[:space:]]+30s([[:space:]]|$)' "$SERVICE_FILE"; } &&
+        { [[ "$HAS_POLL" != true ]] || grep -Eq '^[[:space:]]*ExecStart=.*-download-poll-timeout[[:space:]]+20s([[:space:]]|$)' "$SERVICE_FILE"; } &&
         systemctl daemon-reload >/dev/null 2>&1; then
         echo -e "${GREEN}Tuning HCR aplicado: polling em ${HCR_DOWNLOAD_POLL_TIMEOUT} e frame em $((HCR_DOWNLOAD_FRAME / 1024)) KiB; unit anterior salva em ${BACKUP}.${NC}"
         return 0
@@ -1122,9 +1122,8 @@ toggle_port_multiprotocol() {
 }
 
 toggle_port_hcr() {
-    local PORT="$1" SERVICE="proxy-${1}.service" FLAG MULTI_FLAG PREVIOUS_HCR=false PREVIOUS_MULTI=false CONFIRM=""
+    local PORT="$1" SERVICE="proxy-${1}.service" FLAG PREVIOUS_HCR=false CONFIRM=""
     FLAG=$(hcr_flag_for_port "$PORT")
-    MULTI_FLAG=$(multiprotocol_flag_for_port "$PORT")
     systemctl is-active --quiet "$SERVICE" 2>/dev/null || {
         echo -e "${RED}A porta ${PORT} não está mais ativa.${NC}"
         read -r -p "Enter para continuar..." _
@@ -1136,7 +1135,6 @@ toggle_port_hcr() {
     mkdir -p "$BYPASS_DIR" || return 1
 
     [[ -f "$FLAG" ]] && PREVIOUS_HCR=true
-    [[ -f "$MULTI_FLAG" ]] && PREVIOUS_MULTI=true
     if [[ "$PREVIOUS_HCR" == true ]]; then
         rm -f -- "$FLAG" || return 1
     else
@@ -1149,33 +1147,19 @@ toggle_port_hcr() {
             echo -e "${RED}Não foi possível gravar a configuração HCR da porta ${PORT}.${NC}"
             return 1
         fi
-        # HCR é roteado pelo dispatcher multiprotocolo. Sem este marcador,
-        # portas como 80/8080 continuam no fluxo HTTP legado e o cliente
-        # falha no handshake, entrando em reconexão contínua.
-        if [[ "$PREVIOUS_MULTI" != true ]] && ! touch "$MULTI_FLAG"; then
-            echo -e "${RED}Não foi possível ativar o multiprotocolo na porta ${PORT}.${NC}"
-            rm -f -- "$FLAG"
-            read -r -p "Enter para continuar..." _
-            return 1
-        fi
     fi
 
     if systemctl restart "$SERVICE" 2>/dev/null; then
         if [[ "$PREVIOUS_HCR" == true ]]; then
             echo -e "${YELLOW}HCR desativado na porta ${PORT}.${NC}"
         else
-            echo -e "${GREEN}HCR ativado na porta ${PORT}; multiprotocolo habilitado para fazer o roteamento.${NC}"
+            echo -e "${GREEN}HCR ativado somente na porta ${PORT}; multiprotocolo não foi alterado.${NC}"
         fi
     else
         if [[ "$PREVIOUS_HCR" == true ]]; then
             touch "$FLAG"
         else
             rm -f -- "$FLAG"
-        fi
-        if [[ "$PREVIOUS_MULTI" == true ]]; then
-            touch "$MULTI_FLAG"
-        else
-            rm -f -- "$MULTI_FLAG"
         fi
         systemctl restart "$SERVICE" >/dev/null 2>&1 || true
         echo -e "${RED}Falha ao reiniciar ${SERVICE}; configuração anterior restaurada.${NC}"
