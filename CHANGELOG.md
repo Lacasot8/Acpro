@@ -6,6 +6,8 @@
 - A tecla H agora ativa automaticamente o multiprotocolo na porta selecionada antes de habilitar o roteamento HCR, evitando que portas como 80 e 8080 permaneçam no fluxo HTTP legado e provoquem reconexões.
 - Ao desativar HCR, o estado anterior do multiprotocolo é preservado; se o restart falhar, os marcadores HCR e multiprotocolo são restaurados juntos.
 - O serviço HCR agora usa `-download-poll-timeout 30s`, valor aceito pelo servidor oficial; a tentativa anterior de 120s era rejeitada pelo limite interno de I/O e impedia o serviço de iniciar.
+- HCR não captura mais TLS nem tráfego desconhecido quando ativado em uma porta multiprotocolo; somente frames HCR válidos são encaminhados ao servidor HCR.
+- O relay reduziu buffers TCP e passou a usar frames HCR de 32 KiB para reduzir bufferbloat, ping alto e perda de throughput em redes móveis.
 
 ## v3.9.3 - Estabilidade HCR em redes móveis
 

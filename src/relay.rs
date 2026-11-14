@@ -1,10 +1,10 @@
 use tokio::io::{self, AsyncRead, AsyncWrite};
 use tokio::net::TcpStream;
 
-/// Buffer por direção. Um tamanho maior reduz syscalls e melhora throughput em
-/// downloads/uploads longos, sem criar um buffer gigante por conexão.
-const RELAY_BUFFER_SIZE: usize = 128 * 1024;
-const SOCKET_BUFFER_SIZE: libc::c_int = 512 * 1024;
+/// Buffer equilibrado por direção: mantém throughput sem acumular dados demais
+/// em redes móveis, o que aumenta o ping durante upload/download.
+const RELAY_BUFFER_SIZE: usize = 64 * 1024;
+const SOCKET_BUFFER_SIZE: libc::c_int = 128 * 1024;
 const TCP_KEEPIDLE_SECS: libc::c_int = 20;
 const TCP_KEEPINTVL_SECS: libc::c_int = 10;
 const TCP_KEEPCNT: libc::c_int = 6;

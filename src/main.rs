@@ -161,9 +161,6 @@ async fn handle_multiprotocol_client(
         Protocol::Hcr => tcp_fallback::handle_tcp(client_stream)
             .await
             .map_err(|e| Error::new(ErrorKind::Other, format!("HCR desativado: {e}"))),
-        Protocol::Tls if hcr_enabled => tls::handle_hcr(client_stream)
-            .await
-            .map_err(|e| Error::new(ErrorKind::Other, format!("HCR TLS: {e}"))),
         Protocol::Tls => tls::handle_tls(client_stream)
             .await
             .map_err(|e| Error::new(ErrorKind::Other, format!("TLS passthrough: {e}"))),
@@ -177,9 +174,6 @@ async fn handle_multiprotocol_client(
         Protocol::SshDirect => ssh::handle_ssh_tunnel(client_stream, "127.0.0.1:22")
             .await
             .map_err(|e| Error::new(ErrorKind::Other, format!("SSH direto: {e}"))),
-        Protocol::Unknown if hcr_enabled => tls::handle_hcr(client_stream)
-            .await
-            .map_err(|e| Error::new(ErrorKind::Other, format!("HCR multiprotocolo: {e}"))),
         Protocol::Unknown => tcp_fallback::handle_tcp(client_stream)
             .await
             .map_err(|e| Error::new(ErrorKind::Other, format!("TCP fallback local: {e}"))),
