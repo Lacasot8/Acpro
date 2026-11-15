@@ -11,6 +11,7 @@
 - O frame HCR voltou para 16 KiB após incompatibilidade observada em algumas rotas/clientes com 32 KiB; a prioridade volta a ser manter a sessão conectada.
 - A opção H não altera mais o estado do multiprotocolo; HCR pode ser ativado sozinho em 80, 8080 ou outra porta, sem ligar a opção 7.
 - O relay HCR passou a usar janela TCP maior, limite de bytes não enviados e BBR por conexão quando disponível, melhorando throughput em RTT alto sem liberar uma fila de upload ilimitada.
+- O HCR passou a aceitar até 4096 conexões, 128 sessões e 64 sessões por origem, evitando que o upload multiconexão do Speedtest fique preso nos limites padrão.
 
 ## v3.9.3 - Estabilidade HCR em redes móveis
 

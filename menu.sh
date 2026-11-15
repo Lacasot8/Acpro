@@ -19,6 +19,9 @@ HCR_SSH_TARGET="127.0.0.1:22"
 HCR_DOWNLOAD_POLL_TIMEOUT="20s"
 # 16 KiB é o frame mais compatível com clientes HCR e redes móveis.
 HCR_DOWNLOAD_FRAME="16384"
+HCR_MAX_CONNECTIONS="4096"
+HCR_MAX_SESSIONS="128"
+HCR_MAX_SESSIONS_PER_IP="64"
 HCR_BINARY_CANDIDATES=("${BYPASS_DIR}/hcr-server" "/opt/hcr-server/hcr-server" "/usr/local/bin/hcr-server" "/usr/bin/hcr-server")
 # Fonte pública do binário oficial hcr-server (Linux amd64). Pode ser trocada
 # exportando HCR_SOURCE_URL antes de abrir o menu.
@@ -548,7 +551,7 @@ hcr_ensure_binary() {
 
 # Descobre o formato de argumentos aceito pelo binário instalado.
 hcr_exec_args() {
-    local PORT="$1" BINARY="$2" HELP="" FRAME_ARGS="" POLL_ARGS=""
+    local PORT="$1" BINARY="$2" HELP="" FRAME_ARGS="" POLL_ARGS="" CAPACITY_ARGS=""
 
     HELP=$(timeout 5 "$BINARY" -h 2>&1 </dev/null) || true
     if grep -q -- "-max-download-frame" <<<"$HELP"; then
@@ -557,15 +560,24 @@ hcr_exec_args() {
     if grep -q -- "-download-poll-timeout" <<<"$HELP"; then
         POLL_ARGS=" -download-poll-timeout ${HCR_DOWNLOAD_POLL_TIMEOUT}"
     fi
+    if grep -q -- "-max-connections" <<<"$HELP"; then
+        CAPACITY_ARGS+=" -max-connections ${HCR_MAX_CONNECTIONS}"
+    fi
+    if grep -q -- "-max-sessions int" <<<"$HELP"; then
+        CAPACITY_ARGS+=" -max-sessions ${HCR_MAX_SESSIONS}"
+    fi
+    if grep -q -- "-max-sessions-per-ip" <<<"$HELP"; then
+        CAPACITY_ARGS+=" -max-sessions-per-ip ${HCR_MAX_SESSIONS_PER_IP}"
+    fi
     if grep -q -- "-listen" <<<"$HELP"; then
-        printf '%s' "-listen :${PORT} -target ${HCR_SSH_TARGET} -transport plain${FRAME_ARGS}${POLL_ARGS}"
+        printf '%s' "-listen :${PORT} -target ${HCR_SSH_TARGET} -transport plain${FRAME_ARGS}${POLL_ARGS}${CAPACITY_ARGS}"
     else
-        printf '%s' "--port ${PORT} --transport plain${FRAME_ARGS}${POLL_ARGS}"
+        printf '%s' "--port ${PORT} --transport plain${FRAME_ARGS}${POLL_ARGS}${CAPACITY_ARGS}"
     fi
 }
 
 hcr_alternate_args() {
-    local ARGS="$1" PORT="$2" FRAME_ARGS="" POLL_ARGS=""
+    local ARGS="$1" PORT="$2" FRAME_ARGS="" POLL_ARGS="" CAPACITY_ARGS=""
 
     if [[ "$ARGS" == *"-max-download-frame"* ]]; then
         FRAME_ARGS=" -max-download-frame ${HCR_DOWNLOAD_FRAME}"
@@ -573,11 +585,14 @@ hcr_alternate_args() {
     if [[ "$ARGS" == *"-download-poll-timeout"* ]]; then
         POLL_ARGS=" -download-poll-timeout ${HCR_DOWNLOAD_POLL_TIMEOUT}"
     fi
+    [[ "$ARGS" == *"-max-connections"* ]] && CAPACITY_ARGS+=" -max-connections ${HCR_MAX_CONNECTIONS}"
+    [[ "$ARGS" == *"-max-sessions "* ]] && CAPACITY_ARGS+=" -max-sessions ${HCR_MAX_SESSIONS}"
+    [[ "$ARGS" == *"-max-sessions-per-ip"* ]] && CAPACITY_ARGS+=" -max-sessions-per-ip ${HCR_MAX_SESSIONS_PER_IP}"
 
     if [[ "$ARGS" == -listen* ]]; then
-        printf '%s' "--port ${PORT} --transport plain${FRAME_ARGS}${POLL_ARGS}"
+        printf '%s' "--port ${PORT} --transport plain${FRAME_ARGS}${POLL_ARGS}${CAPACITY_ARGS}"
     else
-        printf '%s' "-listen :${PORT} -target ${HCR_SSH_TARGET} -transport plain${FRAME_ARGS}${POLL_ARGS}"
+        printf '%s' "-listen :${PORT} -target ${HCR_SSH_TARGET} -transport plain${FRAME_ARGS}${POLL_ARGS}${CAPACITY_ARGS}"
     fi
 }
 
@@ -617,6 +632,59 @@ hcr_apply_download_frame_tuning() {
         systemctl daemon-reload >/dev/null 2>&1 || true
         return 1
     fi
+}
+
+hcr_apply_capacity_tuning() {
+    local BINARY="$1" SERVICE_FILE="$2" HELP="" BACKUP="" HAS_CAPACITY=false
+
+    [[ -x "$BINARY" && -f "$SERVICE_FILE" ]] || return 0
+    HELP=$(timeout 5 "$BINARY" -h 2>&1 </dev/null) || true
+    grep -q -- "-max-connections" <<<"$HELP" && HAS_CAPACITY=true
+    grep -q -- "-max-sessions int" <<<"$HELP" && HAS_CAPACITY=true
+    grep -q -- "-max-sessions-per-ip" <<<"$HELP" && HAS_CAPACITY=true
+    [[ "$HAS_CAPACITY" == true ]] || return 0
+    grep -Eq '^[[:space:]]*ExecStart=.*hcr-server' "$SERVICE_FILE" || return 0
+
+    if grep -q -- "-max-connections" <<<"$HELP" && ! grep -Eq '^[[:space:]]*ExecStart=.*-max-connections[[:space:]]+4096([[:space:]]|$)' "$SERVICE_FILE"; then
+        :
+    elif grep -q -- "-max-sessions int" <<<"$HELP" && ! grep -Eq '^[[:space:]]*ExecStart=.*-max-sessions[[:space:]]+128([[:space:]]|$)' "$SERVICE_FILE"; then
+        :
+    elif grep -q -- "-max-sessions-per-ip" <<<"$HELP" && ! grep -Eq '^[[:space:]]*ExecStart=.*-max-sessions-per-ip[[:space:]]+64([[:space:]]|$)' "$SERVICE_FILE"; then
+        :
+    else
+        return 0
+    fi
+
+    BACKUP="${SERVICE_FILE}.bak.$(date +%Y%m%d-%H%M%S)"
+    cp -a -- "$SERVICE_FILE" "$BACKUP" || return 1
+    if grep -q -- "-max-connections" <<<"$HELP"; then
+        if grep -Eq '^[[:space:]]*ExecStart=.*-max-connections([=[:space:]]|$)' "$SERVICE_FILE"; then
+            sed -i -E '/^[[:space:]]*ExecStart=.*hcr-server/ { s/(-{1,2}max-connections)=([0-9]+)/\1 4096/; s/(-{1,2}max-connections)[[:space:]]+[0-9]+/\1 4096/; }' "$SERVICE_FILE"
+        else
+            sed -i -E '/^[[:space:]]*ExecStart=.*hcr-server/ s/[[:space:]]*$/ -max-connections 4096/' "$SERVICE_FILE"
+        fi
+    fi
+    if grep -q -- "-max-sessions int" <<<"$HELP"; then
+        if grep -Eq '^[[:space:]]*ExecStart=.*-max-sessions([=[:space:]]|$)' "$SERVICE_FILE"; then
+            sed -i -E '/^[[:space:]]*ExecStart=.*hcr-server/ { s/(-{1,2}max-sessions)=([0-9]+)/\1 128/; s/(-{1,2}max-sessions)[[:space:]]+[0-9]+/\1 128/; }' "$SERVICE_FILE"
+        else
+            sed -i -E '/^[[:space:]]*ExecStart=.*hcr-server/ s/[[:space:]]*$/ -max-sessions 128/' "$SERVICE_FILE"
+        fi
+    fi
+    if grep -q -- "-max-sessions-per-ip" <<<"$HELP"; then
+        if grep -Eq '^[[:space:]]*ExecStart=.*-max-sessions-per-ip([=[:space:]]|$)' "$SERVICE_FILE"; then
+            sed -i -E '/^[[:space:]]*ExecStart=.*hcr-server/ { s/(-{1,2}max-sessions-per-ip)=([0-9]+)/\1 64/; s/(-{1,2}max-sessions-per-ip)[[:space:]]+[0-9]+/\1 64/; }' "$SERVICE_FILE"
+        else
+            sed -i -E '/^[[:space:]]*ExecStart=.*hcr-server/ s/[[:space:]]*$/ -max-sessions-per-ip 64/' "$SERVICE_FILE"
+        fi
+    fi
+    if systemctl daemon-reload >/dev/null 2>&1; then
+        echo -e "${GREEN}Limites HCR ajustados: 4096 conexões, 128 sessões e 64 sessões por origem.${NC}"
+        return 0
+    fi
+    cp -a -- "$BACKUP" "$SERVICE_FILE"
+    systemctl daemon-reload >/dev/null 2>&1 || true
+    return 1
 }
 
 hcr_port_busy() {
@@ -859,6 +927,9 @@ hcr_open_port() {
         if ! hcr_apply_download_frame_tuning "$BINARY" "$SERVICE_FILE"; then
             echo -e "${YELLOW}Não foi possível ajustar o tamanho dos blocos de download HCR; mantendo a configuração atual.${NC}"
         fi
+        if ! hcr_apply_capacity_tuning "$BINARY" "$SERVICE_FILE"; then
+            echo -e "${YELLOW}Não foi possível ajustar os limites de sessões HCR; mantendo a configuração atual.${NC}"
+        fi
         echo -e "${YELLOW}Aplicando configuração persistente do HCR e reiniciando uma vez...${NC}"
         if systemctl restart "$SERVICE" >/dev/null 2>&1 && hcr_wait_listening "$PORT"; then
             echo -e "${GREEN}HCR ativo com configuração persistente na porta ${PORT}.${NC}"
@@ -875,6 +946,9 @@ hcr_open_port() {
             hcr_apply_session_config || true
             if ! hcr_apply_download_frame_tuning "$BINARY" "$SERVICE_FILE"; then
                 echo -e "${YELLOW}Não foi possível ajustar o tamanho dos blocos de download HCR; mantendo a configuração atual.${NC}"
+            fi
+            if ! hcr_apply_capacity_tuning "$BINARY" "$SERVICE_FILE"; then
+                echo -e "${YELLOW}Não foi possível ajustar os limites de sessões HCR; mantendo a configuração atual.${NC}"
             fi
             if systemctl start "$SERVICE" >/dev/null 2>&1 && hcr_wait_listening "$PORT"; then
                 echo -e "${GREEN}HCR iniciado na porta ${PORT} usando a unit existente.${NC}"
