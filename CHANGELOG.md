@@ -14,6 +14,7 @@
 - O HCR passou a aceitar até 4096 conexões, 128 sessões e 64 sessões por origem, evitando que o upload multiconexão do Speedtest fique preso nos limites padrão.
 - A opção H agora usa um detector HCR dedicado que aguarda cabeçalhos fragmentados por até 3 segundos, corrigindo falhas do HCR na porta 80/8080 sem ligar o multiprotocolo.
 - O detector HCR agora roda antes do dispatcher multiprotocolo, fazendo 80, 8080 e demais portas com HCR ON usarem o mesmo caminho mesmo se existir um marcador antigo da opção 7.
+- Portas com HCR ON agora ficam vinculadas ao `hcr-8880.service` no systemd, e o proxy tenta reconectar ao backend por até 20 segundos quando o serviço reinicia.
 
 ## v3.9.3 - Estabilidade HCR em redes móveis
 

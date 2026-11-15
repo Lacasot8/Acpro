@@ -4,9 +4,11 @@ use std::sync::Arc;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 use tokio::sync::Mutex;
-use tokio::time::{timeout, Duration};
+use tokio::time::{sleep, timeout, Duration};
 
 const HCR_BACKEND_CONNECT_TIMEOUT: Duration = Duration::from_secs(3);
+const HCR_BACKEND_RETRY_DELAY: Duration = Duration::from_millis(500);
+const HCR_BACKEND_RETRIES: usize = 20;
 const HCR_BACKEND_ADDR: &str = "127.0.0.1:8880";
 
 /// Handle TLS connections - passthrough to backend.
@@ -55,16 +57,34 @@ pub async fn handle_tls(socket: TcpStream) -> Result<()> {
 /// Encaminha o fluxo HCR intacto ao servidor oficial HCR em transporte plain.
 pub async fn handle_hcr(mut socket: TcpStream) -> Result<()> {
     crate::relay::tune_tcp_stream(&socket);
-    let mut hcr = timeout(
-        HCR_BACKEND_CONNECT_TIMEOUT,
-        TcpStream::connect(HCR_BACKEND_ADDR),
-    )
-    .await
-    .map_err(|_| anyhow::anyhow!("timeout conectando ao servidor HCR em {HCR_BACKEND_ADDR}"))??;
+    let mut hcr = connect_hcr_backend().await?;
     crate::relay::tune_tcp_stream(&hcr);
     info!("HCR multiprotocolo -> servidor oficial {HCR_BACKEND_ADDR}");
     crate::relay::copy_bidirectional(&mut socket, &mut hcr).await?;
     Ok(())
+}
+
+async fn connect_hcr_backend() -> Result<TcpStream> {
+    let mut last_error = None;
+    for attempt in 0..HCR_BACKEND_RETRIES {
+        match timeout(
+            HCR_BACKEND_CONNECT_TIMEOUT,
+            TcpStream::connect(HCR_BACKEND_ADDR),
+        )
+        .await
+        {
+            Ok(Ok(stream)) => return Ok(stream),
+            Ok(Err(error)) => last_error = Some(error.to_string()),
+            Err(_) => last_error = Some("timeout conectando ao backend HCR".to_string()),
+        }
+        if attempt + 1 < HCR_BACKEND_RETRIES {
+            sleep(HCR_BACKEND_RETRY_DELAY).await;
+        }
+    }
+    Err(anyhow::anyhow!(
+        "servidor HCR indisponível em {HCR_BACKEND_ADDR} após {HCR_BACKEND_RETRIES} tentativas: {}",
+        last_error.unwrap_or_else(|| "erro desconhecido".to_string())
+    ))
 }
 
 async fn transfer_data(

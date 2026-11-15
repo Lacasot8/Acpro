@@ -1195,6 +1195,37 @@ toggle_port_multiprotocol() {
     read -r -p "Enter para continuar..." _
 }
 
+configure_hcr_proxy_dependency() {
+    local PORT="$1" ENABLED="$2"
+    local DROPIN_DIR="${SYSTEMD_DIR}/proxy-${PORT}.service.d"
+    local DROPIN_FILE="${DROPIN_DIR}/hcr-backend.conf"
+
+    if [[ "$ENABLED" == true ]]; then
+        mkdir -p "$DROPIN_DIR" || return 1
+        cat > "$DROPIN_FILE" <<EOF
+[Unit]
+Wants=${HCR_SERVICE}
+After=${HCR_SERVICE}
+EOF
+    else
+        rm -f -- "$DROPIN_FILE"
+        rmdir "$DROPIN_DIR" 2>/dev/null || true
+    fi
+    systemctl daemon-reload >/dev/null 2>&1
+}
+
+hcr_reconcile_proxy_dependencies() {
+    local FLAG PORT
+    for FLAG in "${BYPASS_DIR}"/hcr-*.enabled; do
+        [[ -f "$FLAG" ]] || continue
+        PORT=${FLAG##*/hcr-}
+        PORT=${PORT%.enabled}
+        [[ "$PORT" =~ ^[0-9]+$ ]] || continue
+        [[ -f "${SYSTEMD_DIR}/proxy-${PORT}.service" ]] || continue
+        configure_hcr_proxy_dependency "$PORT" true || true
+    done
+}
+
 toggle_port_hcr() {
     local PORT="$1" SERVICE="proxy-${1}.service" FLAG PREVIOUS_HCR=false CONFIRM=""
     FLAG=$(hcr_flag_for_port "$PORT")
@@ -1211,6 +1242,7 @@ toggle_port_hcr() {
     [[ -f "$FLAG" ]] && PREVIOUS_HCR=true
     if [[ "$PREVIOUS_HCR" == true ]]; then
         rm -f -- "$FLAG" || return 1
+        configure_hcr_proxy_dependency "$PORT" false || true
     else
         if ! systemctl is-active --quiet "$HCR_SERVICE" 2>/dev/null; then
             echo -e "${RED}O servidor HCR oficial (${HCR_SERVICE}, porta ${HCR_PORT}) precisa estar ativo.${NC}"
@@ -1219,6 +1251,11 @@ toggle_port_hcr() {
         fi
         if ! touch "$FLAG"; then
             echo -e "${RED}Não foi possível gravar a configuração HCR da porta ${PORT}.${NC}"
+            return 1
+        fi
+        if ! configure_hcr_proxy_dependency "$PORT" true; then
+            rm -f -- "$FLAG"
+            echo -e "${RED}Não foi possível vincular a porta ${PORT} ao serviço HCR.${NC}"
             return 1
         fi
     fi
@@ -1232,8 +1269,10 @@ toggle_port_hcr() {
     else
         if [[ "$PREVIOUS_HCR" == true ]]; then
             touch "$FLAG"
+            configure_hcr_proxy_dependency "$PORT" true || true
         else
             rm -f -- "$FLAG"
+            configure_hcr_proxy_dependency "$PORT" false || true
         fi
         systemctl restart "$SERVICE" >/dev/null 2>&1 || true
         echo -e "${RED}Falha ao reiniciar ${SERVICE}; configuração anterior restaurada.${NC}"
@@ -1244,6 +1283,7 @@ toggle_port_hcr() {
 manage_hcr_support() {
     local ACTION SERVICE_FILE SERVICE_NAME PORT FLAG INDEX
     local -a ACTIVE_PORTS=()
+    hcr_reconcile_proxy_dependencies
     while true; do
         ACTIVE_PORTS=()
         for SERVICE_FILE in "${SYSTEMD_DIR}"/proxy-*.service; do
