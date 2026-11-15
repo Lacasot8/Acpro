@@ -141,6 +141,33 @@ pub async fn detect_from_stream(stream: &TcpStream) -> io::Result<Protocol> {
     }
 }
 
+/// Detecta HCR sem envolver a classificação dos demais protocolos. É usado
+/// quando a opção H está ativa em uma porta sem multiprotocolo. O cliente HCR
+/// pode entregar os 62 bytes do cabeçalho em vários pacotes em redes móveis;
+/// por isso aguardamos o cabeçalho completo, mas rejeitamos imediatamente um
+/// primeiro byte que não possa ser HCR.
+pub async fn detect_hcr_only(stream: &TcpStream) -> io::Result<bool> {
+    let mut buffer = [0u8; HCR_HEADER_SIZE];
+    let result = timeout(Duration::from_secs(3), async {
+        loop {
+            let bytes_peeked = stream.peek(&mut buffer).await?;
+            if bytes_peeked == 0 {
+                return Ok(false);
+            }
+            match sniff_hcr_frame(&buffer[..bytes_peeked]) {
+                Some(true) => return Ok(true),
+                Some(false) => return Ok(false),
+                None => sleep(Duration::from_millis(10)).await,
+            }
+        }
+    })
+    .await;
+    match result {
+        Ok(detected) => detected,
+        Err(_) => Ok(false),
+    }
+}
+
 fn is_http_method_prefix(data: &[u8]) -> bool {
     const RESPONSE_PREFIX: &[u8] = b"HTTP/";
     if data.len() <= RESPONSE_PREFIX.len()

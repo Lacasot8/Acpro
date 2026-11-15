@@ -130,9 +130,7 @@ async fn handle_client_protocol(
     // HCR pode ser habilitado sozinho pela opção H. Nesse modo, somente um
     // frame HCR válido é encaminhado ao servidor HCR; o restante segue o
     // fluxo normal da porta sem ligar o dispatcher multiprotocolo.
-    if hcr_enabled
-        && matches!(protocol::detect_from_stream(&client_stream).await?, Protocol::Hcr)
-    {
+    if hcr_enabled && protocol::detect_hcr_only(&client_stream).await? {
         println!("[HCR] Frame detectado em porta sem multiprotocolo; encaminhando ao servidor oficial");
         return tls::handle_hcr(client_stream)
             .await

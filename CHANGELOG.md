@@ -12,6 +12,7 @@
 - Restaurado o comportamento da opção H: ao ativar HCR em uma porta, o multiprotocolo também é ligado quando necessário, garantindo o mesmo roteamento que funciona na 8080.
 - O relay HCR passou a usar janela TCP maior, limite de bytes não enviados e BBR por conexão quando disponível, melhorando throughput em RTT alto sem liberar uma fila de upload ilimitada.
 - O HCR passou a aceitar até 4096 conexões, 128 sessões e 64 sessões por origem, evitando que o upload multiconexão do Speedtest fique preso nos limites padrão.
+- A opção H agora usa um detector HCR dedicado que aguarda cabeçalhos fragmentados por até 3 segundos, corrigindo falhas do HCR na porta 80/8080 sem ligar o multiprotocolo.
 
 ## v3.9.3 - Estabilidade HCR em redes móveis
 
