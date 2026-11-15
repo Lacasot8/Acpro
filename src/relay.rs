@@ -1,10 +1,12 @@
 use tokio::io::{self, AsyncRead, AsyncWrite};
 use tokio::net::TcpStream;
 
-/// Buffer equilibrado por direção: mantém throughput sem acumular dados demais
-/// em redes móveis, o que aumenta o ping durante upload/download.
-const RELAY_BUFFER_SIZE: usize = 64 * 1024;
-const SOCKET_BUFFER_SIZE: libc::c_int = 128 * 1024;
+/// Janela maior para vencer RTT alto; o limite de bytes não enviados impede
+/// que o ganho de throughput vire uma fila enorme durante o upload.
+const RELAY_BUFFER_SIZE: usize = 128 * 1024;
+const SOCKET_RECEIVE_BUFFER_SIZE: libc::c_int = 512 * 1024;
+const SOCKET_SEND_BUFFER_SIZE: libc::c_int = 256 * 1024;
+const TCP_NOTSENT_LOWAT_BYTES: libc::c_uint = 64 * 1024;
 const TCP_KEEPIDLE_SECS: libc::c_int = 20;
 const TCP_KEEPINTVL_SECS: libc::c_int = 10;
 const TCP_KEEPCNT: libc::c_int = 6;
@@ -19,20 +21,39 @@ pub fn tune_tcp_stream(stream: &TcpStream) {
     #[cfg(target_os = "linux")]
     unsafe {
         let fd = stream.as_raw_fd();
-        let size = std::mem::size_of_val(&SOCKET_BUFFER_SIZE) as libc::socklen_t;
+        let receive_size = std::mem::size_of_val(&SOCKET_RECEIVE_BUFFER_SIZE) as libc::socklen_t;
         let _ = libc::setsockopt(
             fd,
             libc::SOL_SOCKET,
             libc::SO_RCVBUF,
-            &SOCKET_BUFFER_SIZE as *const _ as *const libc::c_void,
-            size,
+            &SOCKET_RECEIVE_BUFFER_SIZE as *const _ as *const libc::c_void,
+            receive_size,
         );
+        let send_size = std::mem::size_of_val(&SOCKET_SEND_BUFFER_SIZE) as libc::socklen_t;
         let _ = libc::setsockopt(
             fd,
             libc::SOL_SOCKET,
             libc::SO_SNDBUF,
-            &SOCKET_BUFFER_SIZE as *const _ as *const libc::c_void,
-            size,
+            &SOCKET_SEND_BUFFER_SIZE as *const _ as *const libc::c_void,
+            send_size,
+        );
+        let _ = libc::setsockopt(
+            fd,
+            libc::IPPROTO_TCP,
+            libc::TCP_NOTSENT_LOWAT,
+            &TCP_NOTSENT_LOWAT_BYTES as *const _ as *const libc::c_void,
+            std::mem::size_of_val(&TCP_NOTSENT_LOWAT_BYTES) as libc::socklen_t,
+        );
+        // BBR reduz filas e costuma ser melhor em RTT alto; se não estiver
+        // disponível no kernel, o erro é ignorado e o congestion control atual
+        // continua valendo para esta conexão.
+        let bbr = b"bbr\0";
+        let _ = libc::setsockopt(
+            fd,
+            libc::IPPROTO_TCP,
+            libc::TCP_CONGESTION,
+            bbr.as_ptr() as *const libc::c_void,
+            bbr.len() as libc::socklen_t,
         );
         let quickack: libc::c_int = 1;
         let _ = libc::setsockopt(
