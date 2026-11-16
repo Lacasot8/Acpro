@@ -72,7 +72,7 @@ language_text() {
         en:xhttp) printf 'XHTTP + SSL TUNNEL' ;;
         en:integrated) printf 'INTEGRATED PROTOCOL' ;;
         en:update) printf 'UPDATE FROM GITHUB' ;;
-        en:status) printf 'MULTIPROTOCOL + STATUS' ;;
+        en:status) printf 'MULTIPROTOCOL + STATUS + HCR' ;;
         en:uninstall) printf 'UNINSTALL AZPRO' ;;
         en:language) printf 'LANGUAGE / IDIOMA' ;;
         en:exit) printf 'EXIT' ;;
@@ -127,7 +127,7 @@ language_text() {
         es:xhttp) printf 'XHTTP + TÚNEL SSL' ;;
         es:integrated) printf 'PROTOCOLO INTEGRADO' ;;
         es:update) printf 'ACTUALIZAR DESDE GITHUB' ;;
-        es:status) printf 'MULTIPROTOCOLO + ESTADO' ;;
+        es:status) printf 'MULTIPROTOCOLO + ESTADO + HCR' ;;
         es:uninstall) printf 'DESINSTALAR AZPRO' ;;
         es:language) printf 'IDIOMA / LANGUAGE' ;;
         es:exit) printf 'SALIR' ;;
@@ -182,7 +182,7 @@ language_text() {
         pt-BR:xhttp) printf 'XHTTP + SSL TUNNEL' ;;
         pt-BR:integrated) printf 'PROTOCOLO INTEGRADO' ;;
         pt-BR:update) printf 'ATUALIZAR PELO GITHUB' ;;
-        pt-BR:status) printf 'MULTIPROTOCOLO + STATUS' ;;
+        pt-BR:status) printf 'Multiprotocolo + Status + HCR' ;;
         pt-BR:uninstall) printf 'DESINSTALAR AZPRO' ;;
         pt-BR:language) printf 'IDIOMA / LANGUAGE' ;;
         pt-BR:exit) printf 'SAIR' ;;
@@ -1997,7 +1997,7 @@ show_menu() {
     panel_mid_color "$AQUA"
     panel_line_color "$AQUA" "${YELLOW}${BOLD}⚙ PAINEL E CONFIGURAÇÕES${NC}"
     panel_line_color "$AQUA" "${WHITE}06${NC}  ${GREEN}Atualizar pelo GitHub${NC}"
-    panel_line_color "$AQUA" "${WHITE}07${NC}  ${GREEN}Status / multiprotocolo / HCR${NC}"
+    panel_line_color "$AQUA" "${WHITE}07${NC}  ${GREEN}Multiprotocolo + Status + HCR${NC}"
     panel_line_color "$AQUA" "${WHITE}09${NC}  ${GREEN}Idioma do painel${NC}"
     panel_bottom_color "$AQUA"
     echo ""
