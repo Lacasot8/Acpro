@@ -123,9 +123,18 @@ async fn handle_client_protocol(
     hcr_enabled: bool,
     tls_enabled: bool,
 ) -> Result<(), Error> {
-    // HCR tem prioridade somente quando o cabeçalho HCR é válido. Assim a
-    // opção H funciona igual em 80, 8080 e qualquer outra porta, mesmo que a
-    // porta ainda tenha um marcador antigo de multiprotocolo.
+    // Quando a opção H está ligada sem multiprotocolo, a porta foi dedicada
+    // ao HCR: encaminhar diretamente evita que redes móveis/HTTP camuflado
+    // escondam o primeiro frame antes da detecção.
+    if hcr_enabled && !multiprotocol_enabled {
+        println!("[HCR] Modo independente; encaminhando ao servidor oficial");
+        return tls::handle_hcr(client_stream)
+            .await
+            .map_err(|e| Error::new(ErrorKind::Other, format!("HCR independente: {e}")));
+    }
+
+    // Com multiprotocolo ligado, detectar apenas frames HCR preserva os
+    // demais protocolos na mesma porta.
     if hcr_enabled && protocol::detect_hcr_only(&client_stream).await? {
         println!("[HCR] Frame detectado; encaminhando ao servidor oficial");
         return tls::handle_hcr(client_stream)

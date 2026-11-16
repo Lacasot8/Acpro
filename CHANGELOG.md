@@ -3,16 +3,16 @@
 ## Próxima versão - HCR na opção 7/H
 
 ### Corrigido
-- A tecla H agora ativa automaticamente o multiprotocolo na porta selecionada antes de habilitar o roteamento HCR, evitando que portas como 80 e 8080 permaneçam no fluxo HTTP legado e provoquem reconexões.
-- Ao desativar HCR, o estado anterior do multiprotocolo é preservado; se o restart falhar, os marcadores HCR e multiprotocolo são restaurados juntos.
+- Quando HCR está ativo sem multiprotocolo, a porta agora encaminha diretamente ao backend HCR oficial; isso corrige o uso do HCR independente na porta 80 sem ativar a opção 7 automaticamente.
+- A dependência da porta HCR usa `Requires=` e é reaplicada na inicialização do menu, mantendo as portas HCR vinculadas ao `hcr-8880.service` após reinícios.
+- A detecção de frames HCR fragmentados em redes móveis passou a aguardar até 8 segundos quando o multiprotocolo também está ativo.
 - O serviço HCR agora usa `-download-poll-timeout 20s` para reduzir resets de operadoras móveis na porta direta 8880; o valor continua dentro do limite aceito pelo servidor oficial.
 - HCR não captura mais TLS nem tráfego desconhecido quando ativado em uma porta multiprotocolo; somente frames HCR válidos são encaminhados ao servidor HCR.
 - O relay reduziu buffers TCP e passou a usar frames HCR de 32 KiB para reduzir bufferbloat, ping alto e perda de throughput em redes móveis.
 - O frame HCR voltou para 16 KiB após incompatibilidade observada em algumas rotas/clientes com 32 KiB; a prioridade volta a ser manter a sessão conectada.
-- Restaurado o comportamento da opção H: ao ativar HCR em uma porta, o multiprotocolo também é ligado quando necessário, garantindo o mesmo roteamento que funciona na 8080.
 - O relay HCR passou a usar janela TCP maior, limite de bytes não enviados e BBR por conexão quando disponível, melhorando throughput em RTT alto sem liberar uma fila de upload ilimitada.
 - O HCR passou a aceitar até 4096 conexões, 128 sessões e 64 sessões por origem, evitando que o upload multiconexão do Speedtest fique preso nos limites padrão.
-- A opção H agora usa um detector HCR dedicado que aguarda cabeçalhos fragmentados por até 3 segundos, corrigindo falhas do HCR na porta 80/8080 sem ligar o multiprotocolo.
+- A opção H usa encaminhamento direto quando o multiprotocolo está desligado; no modo combinado, o detector HCR aguarda cabeçalhos fragmentados por até 8 segundos.
 - O detector HCR agora roda antes do dispatcher multiprotocolo, fazendo 80, 8080 e demais portas com HCR ON usarem o mesmo caminho mesmo se existir um marcador antigo da opção 7.
 - Portas com HCR ON agora ficam vinculadas ao `hcr-8880.service` no systemd, e o proxy tenta reconectar ao backend por até 20 segundos quando o serviço reinicia.
 
