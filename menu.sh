@@ -1852,30 +1852,146 @@ uninstall_proxy() {
     exit 0
 }
 
+panel_value() {
+    local VALUE="$1" FALLBACK="$2"
+    [[ -n "$VALUE" ]] && printf '%s' "$VALUE" || printf '%s' "$FALLBACK"
+}
+
+panel_os() {
+    if [[ -r /etc/os-release ]]; then
+        . /etc/os-release
+        printf '%s' "${PRETTY_NAME:-Linux}"
+    else
+        printf 'Linux'
+    fi
+}
+
+panel_ip() {
+    local IP=""
+    IP=$(hostname -I 2>/dev/null | tr ' ' '\n' | awk '$0 !~ /^169\.254\./ && NF {print; exit}')
+    [[ "$IP" =~ ^[0-9a-fA-F:.]+$ ]] || IP=""
+    if [[ -z "$IP" ]] && command -v curl >/dev/null 2>&1; then
+        IP=$(curl -4fsS --max-time 1 https://api.ipify.org 2>/dev/null || true)
+    fi
+    panel_value "$IP" "não detectado"
+}
+
+panel_cpu() {
+    local LOAD CORES PERCENT
+    LOAD=$(awk '{print $1}' /proc/loadavg 2>/dev/null)
+    CORES=$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 1)
+    PERCENT=$(awk -v load="${LOAD:-0}" -v cores="${CORES:-1}" 'BEGIN { printf "%.1f%%", (load / cores) * 100 }')
+    printf '%s' "$PERCENT"
+}
+
+panel_ram() {
+    awk '/MemTotal:/ {total=$2} /MemAvailable:/ {available=$2} END {
+        if (total > 0) printf "%.0f%% (%d/%d MB)", (1 - available / total) * 100, (total - available) / 1024, total / 1024;
+        else print "n/d"
+    }' /proc/meminfo 2>/dev/null
+}
+
+panel_users() {
+    local CREATED ONLINE
+    CREATED=$(awk -F: '$7 !~ /(nologin|false)$/ {n++} END {print n+0}' /etc/passwd 2>/dev/null)
+    ONLINE=$(who 2>/dev/null | wc -l | tr -d ' ')
+    printf '%s criados | %s online' "$CREATED" "$ONLINE"
+}
+
+panel_service_state() {
+    local LABEL="$1" SERVICE="$2" STATE COLOR
+    if systemctl is-active --quiet "$SERVICE" 2>/dev/null; then
+        STATE="ON"; COLOR="$LIGHT_GREEN"
+    else
+        STATE="OFF"; COLOR="$RED"
+    fi
+    printf '%-8s: %b%-3s%b' "$LABEL" "$COLOR" "$STATE" "$NC"
+}
+
+panel_proxy_state() {
+    local STATE="OFF"
+    if has_active_azpro_service; then STATE="ON"; fi
+    printf '%-8s: %b%-3s%b' "PROXY" "$([[ "$STATE" == ON ]] && echo "$LIGHT_GREEN" || echo "$RED")" "$STATE" "$NC"
+}
+
+panel_multi_state() {
+    local STATE="OFF"
+    if has_any_multiprotocol_enabled; then STATE="ON"; fi
+    printf '%-8s: %b%-3s%b' "MULTI" "$([[ "$STATE" == ON ]] && echo "$LIGHT_GREEN" || echo "$RED")" "$STATE" "$NC"
+}
+
+panel_ports_plain() {
+    local SERVICE_FILE NAME PORTS=""
+    for SERVICE_FILE in "${SYSTEMD_DIR}"/proxy-*.service; do
+        [[ -f "$SERVICE_FILE" ]] || continue
+        NAME=$(basename "$SERVICE_FILE" .service | sed 's/^proxy-//')
+        systemctl is-active --quiet "proxy-${NAME}.service" 2>/dev/null || continue
+        PORTS+="${PORTS:+, }${NAME}"
+    done
+    systemctl is-active --quiet "$HCR_SERVICE" 2>/dev/null && PORTS+="${PORTS:+, }HCR:${HCR_PORT}"
+    panel_value "$PORTS" "nenhuma"
+}
+
+show_panel_group() {
+    local TITLE="$1" COLOR="$2"
+    box_line "${COLOR}┌─ ${TITLE} ─┐${NC}"
+}
+
 show_menu() {
-    local LANGUAGE="$(get_language)"
+    local LANGUAGE="$(get_language)" DOMAIN HOST
+    HOST=$(hostname -s 2>/dev/null || echo "azpro")
+    DOMAIN=$(hostname -f 2>/dev/null || true)
+    [[ "$DOMAIN" == "$HOST" ]] && DOMAIN="não configurado"
     clear
-    show_banner
-    echo ""
+
     box_top
-    show_execution_status
-    box_mid
-    show_active_ports
-    box_mid
-    box_line "${WHITE}[01]${NC} ${GREEN}- $(language_text open_port "$LANGUAGE")${NC}"
-    box_line "${WHITE}[02]${NC} ${GREEN}- $(language_text close_port "$LANGUAGE")${NC}"
-    box_line "${WHITE}[03]${NC} ${GREEN}- $(language_text restart_port "$LANGUAGE")${NC}"
-    box_line "${WHITE}[04]${NC} ${GREEN}- $(language_text xhttp "$LANGUAGE")${NC}"
-    box_line "${WHITE}[05]${NC} ${GREEN}- $(language_text integrated "$LANGUAGE")${NC}"
-    box_line "${WHITE}[06]${NC} ${GREEN}- $(language_text update "$LANGUAGE")${NC}"
-    box_line "${WHITE}[07]${NC} ${GREEN}- $(language_text status "$LANGUAGE")${NC}"
-    box_line "${RED}[08]${NC} ${GREEN}- $(language_text uninstall "$LANGUAGE")${NC}"
-    box_line "${WHITE}[09]${NC} ${GREEN}- $(language_text language "$LANGUAGE")${NC}"
-    box_line ""
-    box_line "${WHITE}[00]${NC} - $(language_text exit "$LANGUAGE")"
+    box_line "${MAGENTA}${BOLD}★ AZPRO VPS PREMIUM • PROXY PANEL ★${NC}"
+    box_line "${AQUA}[ Azpro • HCR • MultiProtocol ]${NC}"
     box_bottom
     echo ""
-    echo -n "$(language_text choose "$LANGUAGE") "
+
+    box_top
+    box_line "${AQUA}${BOLD}▣ INFORMAÇÕES DA VPS${NC}"
+    box_line "${WHITE}OS       :${NC} $(panel_os)"
+    box_line "${WHITE}HOST     :${NC} ${HOST}"
+    box_line "${WHITE}IP       :${NC} $(panel_ip)"
+    box_line "${WHITE}DOMÍNIO  :${NC} ${DOMAIN}"
+    box_line "${WHITE}CPU      :${NC} $(panel_cpu)"
+    box_line "${WHITE}RAM      :${NC} $(panel_ram)"
+    box_line "${WHITE}USUÁRIOS :${NC} $(panel_users)"
+    box_bottom
+    echo ""
+
+    box_top
+    show_panel_group "GESTÃO DE PORTAS E SERVIÇOS" "$AQUA"
+    box_line "${WHITE}01${NC}  ${GREEN}Configurar / abrir portas${NC}"
+    box_line "${WHITE}02${NC}  ${GREEN}Fechar porta aberta${NC}"
+    box_line "${WHITE}03${NC}  ${GREEN}Reiniciar porta${NC}"
+    box_line "${WHITE}04${NC}  ${GREEN}XHTTP + túnel SSL${NC}"
+    box_line "${WHITE}05${NC}  ${GREEN}Protocolo integrado${NC}"
+    box_mid
+    show_panel_group "PAINEL E CONFIGURAÇÕES" "$YELLOW"
+    box_line "${WHITE}06${NC}  ${GREEN}Atualizar pelo GitHub${NC}"
+    box_line "${WHITE}07${NC}  ${GREEN}Status / multiprotocolo / HCR${NC}"
+    box_line "${WHITE}09${NC}  ${GREEN}Idioma do painel${NC}"
+    box_bottom
+    echo ""
+
+    box_top
+    box_line "${AQUA}${BOLD}▣ STATUS DOS SERVIÇOS${NC}"
+    box_line "$(panel_service_state SSH ssh.service)  $(panel_service_state HCR "$HCR_SERVICE")"
+    box_line "$(panel_proxy_state)  $(panel_multi_state)"
+    box_line "$(panel_service_state XHTTP proxy-443.service)  $(panel_service_state INTEGR proxy-integrated.service)"
+    box_line "${WHITE}PORTAS   :${NC} $(panel_ports_plain)"
+    box_bottom
+    echo ""
+
+    box_top
+    box_line "${RED}08  Lixeira  Desinstalar Azpro${NC}"
+    box_line "${WHITE}00  Sair do painel${NC}"
+    box_bottom
+    echo ""
+    echo -ne "${MAGENTA}›${NC} $(language_text choose "$LANGUAGE") ${LIGHT_GREEN}"
 }
 
 while true; do
