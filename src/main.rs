@@ -32,7 +32,6 @@ async fn main() -> Result<(), Error> {
     let multiprotocol_enabled = multiprotocol_enabled_for_port(port);
     let hcr_enabled = hcr_enabled_for_port(port);
     let ssh_only = has_arg("-ssh");
-    let tls_enabled = has_arg("-t") || !has_arg("--no-tls");
     let quic_port = get_quic_port();
 
     println!("[Azpro] Proxy TCP v2.6.0");
@@ -71,7 +70,6 @@ async fn main() -> Result<(), Error> {
         bypass_enabled,
         multiprotocol_enabled,
         hcr_enabled,
-        tls_enabled,
     )
     .await;
     Ok(())
@@ -84,7 +82,6 @@ async fn start_http(
     bypass_enabled: bool,
     multiprotocol_enabled: bool,
     hcr_enabled: bool,
-    tls_enabled: bool,
 ) {
     let status_arc = Arc::new(status);
     loop {
@@ -101,7 +98,6 @@ async fn start_http(
                         bypass_enabled,
                         multiprotocol_enabled,
                         hcr_enabled,
-                        tls_enabled,
                     )
                     .await;
                     if let Err(e) = result {
@@ -121,7 +117,6 @@ async fn handle_client_protocol(
     bypass_enabled: bool,
     multiprotocol_enabled: bool,
     hcr_enabled: bool,
-    tls_enabled: bool,
 ) -> Result<(), Error> {
     // Quando a opção H está ligada sem multiprotocolo, a porta foi dedicada
     // ao HCR: encaminhar diretamente evita que redes móveis/HTTP camuflado
@@ -146,12 +141,6 @@ async fn handle_client_protocol(
         return handle_multiprotocol_client(client_stream, status, ssh_only, hcr_enabled).await;
     }
 
-    if tls_enabled && peek_tls_client_hello(&client_stream).await? {
-        println!("[TLS] ClientHello detectado; iniciando passthrough para SSH/VPN local");
-        return tls::handle_tls(client_stream)
-            .await
-            .map_err(|e| Error::new(ErrorKind::Other, e.to_string()));
-    }
     if bypass_enabled {
         return handle_bypass_http_client(client_stream, status).await;
     }
@@ -235,11 +224,35 @@ async fn handle_bypass_http_client(client_stream: TcpStream, status: &str) -> Re
 
 /// Handler original da opção 1, mantido sem as mudanças de multiprotocolo.
 async fn handle_client(
-    client_stream: TcpStream,
+    mut client_stream: TcpStream,
     status: &str,
     ssh_only: bool,
 ) -> Result<(), Error> {
-    handle_legacy_http_tunnel(client_stream, status, ssh_only, false).await
+    // Opção 1: fluxo compatível com o WZPRO, sem o segundo 101 do
+    // multiprotocolo. O caminho HCR chega aqui somente quando está desligado.
+    relay::tune_tcp_stream(&client_stream);
+    client_stream.set_nodelay(true)?;
+    client_stream
+        .write_all(option_one_initial_response())
+        .await?;
+
+    let mut buffer = [0u8; 1024];
+    let _ = client_stream.read(&mut buffer).await?;
+    client_stream
+        .write_all(&option_one_followup(status))
+        .await?;
+
+    let addr_proxy = if ssh_only {
+        "127.0.0.1:22"
+    } else {
+        match timeout(Duration::from_millis(200), peek_stream(&client_stream)).await {
+            Ok(Ok(data)) if data.contains("SSH") || data.is_empty() => "127.0.0.1:22",
+            Ok(_) => "127.0.0.1:1194",
+            Err(_) => "127.0.0.1:22",
+        }
+    };
+    println!("[HTTP] Backend selecionado: {}", addr_proxy);
+    relay_to_backend_legacy(client_stream, addr_proxy).await
 }
 
 async fn handle_multiprotocol_http_client(
@@ -314,6 +327,14 @@ async fn handle_multiprotocol_http_tunnel(
 
 fn http_status_response(code: u16, status: &str) -> Vec<u8> {
     format!("HTTP/1.1 {code} {status}\r\n\r\n").into_bytes()
+}
+
+fn option_one_initial_response() -> &'static [u8] {
+    b"HTTP/1.1 101 Switching Protocols\r\n\r\n"
+}
+
+fn option_one_followup(status: &str) -> Vec<u8> {
+    format!("HTTP/1.1 200 {status}\r\n\r\n").into_bytes()
 }
 
 #[cfg(target_os = "linux")]
@@ -535,8 +556,9 @@ fn has_arg(arg: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::{
-        bypass_enabled_in, find_http_header_end, http_handshake_followup, http_legacy_followup,
-        hcr_enabled_in, http_status_response, multiprotocol_enabled_in, strip_http_decoy_prefix,
+        bypass_enabled_in, find_http_header_end, http_handshake_followup,
+        hcr_enabled_in, http_status_response, multiprotocol_enabled_in, option_one_followup,
+        option_one_initial_response, strip_http_decoy_prefix,
     };
     use std::path::Path;
 
@@ -598,12 +620,15 @@ mod tests {
     }
 
     #[test]
-    fn option_one_keeps_legacy_single_101_then_200_handshake() {
+    fn option_one_uses_wzpro_single_101_then_200_handshake() {
         assert_eq!(
-            http_status_response(101, "Aznet"),
-            b"HTTP/1.1 101 Aznet\r\n\r\n"
+            option_one_initial_response(),
+            b"HTTP/1.1 101 Switching Protocols\r\n\r\n"
         );
-        assert_eq!(http_legacy_followup("Aznet"), b"HTTP/1.1 200 Aznet\r\n\r\n");
+        assert_eq!(
+            option_one_followup("Aznet"),
+            b"HTTP/1.1 200 Aznet\r\n\r\n"
+        );
     }
 
     #[test]
