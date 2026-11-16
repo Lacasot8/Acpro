@@ -5,7 +5,7 @@
 ### Corrigido
 - A opção 1 foi alinhada ao protocolo do WZPRO: `101 Switching Protocols`, leitura de até 1024 bytes e `200 <status>`, com seleção de backend após 200 ms; os caminhos HCR e multiprotocolo permanecem separados e inalterados.
 - Reforçada a separação entre HCR e multiprotocolo: a tecla `H` usa exclusivamente `hcr-<porta>.enabled`, enquanto o dispatcher só é ativado pelo item numérico da opção 7. O binário também deixa explícito no log de inicialização quando o modo multiprotocolo está realmente ativo.
-- Quando HCR está ativo sem multiprotocolo, a porta agora encaminha diretamente ao backend HCR oficial; isso corrige o uso do HCR independente na porta 80 sem ativar a opção 7 automaticamente.
+- Quando HCR está ativo sem multiprotocolo, somente frames HCR são encaminhados ao backend oficial; o restante continua no protocolo da opção 1, sem ativar a opção 7 automaticamente.
 - A dependência da porta HCR usa `Requires=` e é reaplicada na inicialização do menu, mantendo as portas HCR vinculadas ao `hcr-8880.service` após reinícios.
 - A detecção de frames HCR fragmentados em redes móveis passou a aguardar até 8 segundos quando o multiprotocolo também está ativo.
 - O serviço HCR agora usa `-download-poll-timeout 20s` para reduzir resets de operadoras móveis na porta direta 8880; o valor continua dentro do limite aceito pelo servidor oficial.
