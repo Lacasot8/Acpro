@@ -1885,15 +1885,19 @@ panel_cpu() {
     }')
     awk -v value="$PERCENT" 'BEGIN {
         filled=int(value/10); printf "[";
-        for (i=1; i<=10; i++) printf (i<=filled ? "#" : ".");
+        for (i=1; i<=10; i++) printf (i<=filled ? "█" : "░");
         printf "] %.1f%%", value;
     }'
 }
 
 panel_ram() {
     awk '/MemTotal:/ {total=$2} /MemAvailable:/ {available=$2} END {
-        if (total > 0) printf "%.0f%% (%d/%d MB)", (1 - available / total) * 100, (total - available) / 1024, total / 1024;
-        else print "n/d"
+        if (total > 0) {
+            percent=(1 - available / total) * 100; used_mb=(total - available) / 1024; total_mb=total / 1024;
+            filled=int(percent / 10); printf "[";
+            for (i=1; i<=10; i++) printf (i<=filled ? "█" : "░");
+            printf "] %.0f%% (%d/%d MB)", percent, used_mb, total_mb;
+        } else print "[░░░░░░░░░░] n/d"
     }' /proc/meminfo 2>/dev/null
 }
 
@@ -1943,6 +1947,30 @@ show_panel_group() {
     box_line "${COLOR}${BOLD}${TITLE}${NC}"
 }
 
+panel_top_color() {
+    local COLOR="$1"
+    printf '%b╭' "$COLOR"; printf '─%.0s' $(seq 1 $((BOX_WIDTH + 2))); printf '╮%b\n' "$NC"
+}
+
+panel_mid_color() {
+    local COLOR="$1"
+    printf '%b├' "$COLOR"; printf '─%.0s' $(seq 1 $((BOX_WIDTH + 2))); printf '┤%b\n' "$NC"
+}
+
+panel_bottom_color() {
+    local COLOR="$1"
+    printf '%b╰' "$COLOR"; printf '─%.0s' $(seq 1 $((BOX_WIDTH + 2))); printf '╯%b\n' "$NC"
+}
+
+panel_line_color() {
+    local COLOR="$1" CONTENT="$2" VISIBLE PAD
+    VISIBLE=$(strip_len "$CONTENT")
+    PAD=$((BOX_WIDTH - VISIBLE)); (( PAD < 0 )) && PAD=0
+    printf '%b│%b %b' "$COLOR" "$NC" "$CONTENT"
+    printf '%*s' "$PAD" ''
+    printf ' %b│%b\n' "$COLOR" "$NC"
+}
+
 show_menu() {
     local LANGUAGE="$(get_language)" DOMAIN HOST
     HOST=$(hostname -s 2>/dev/null || echo "azpro")
@@ -1950,59 +1978,60 @@ show_menu() {
     [[ "$DOMAIN" == "$HOST" ]] && DOMAIN="não configurado"
     clear
 
-    box_top
-    box_line "${MAGENTA}${BOLD}★ AZPRO VPS PREMIUM • PROXY PANEL ★${NC}"
-    box_line "${AQUA}[ Azpro • HCR • MultiProtocol ]${NC}"
-    box_bottom
+    panel_top_color "$MAGENTA"
+    panel_line_color "$MAGENTA" "${MAGENTA}${BOLD}★ AZPRO VPS PREMIUM • PROXY PANEL ★${NC}"
+    panel_line_color "$MAGENTA" "${AQUA}[ Azpro • HCR • MultiProtocol ]${NC}"
+    panel_bottom_color "$MAGENTA"
     echo ""
 
-    box_top
-    box_line "${AQUA}${BOLD}▣ INFORMAÇÕES DA VPS${NC}"
-    box_line "${WHITE}OS       :${NC} $(panel_os)"
-    box_line "${WHITE}HOST     :${NC} ${HOST}"
-    box_line "${WHITE}IP       :${NC} $(panel_ip)"
-    box_line "${WHITE}DOMÍNIO  :${NC} ${DOMAIN}"
-    box_line "${WHITE}CPU USAGE:${NC} $(panel_cpu)"
-    box_line "${WHITE}RAM      :${NC} $(panel_ram)"
-    box_line "${WHITE}USUÁRIOS :${NC} $(panel_users)"
-    box_bottom
+    panel_top_color "$AQUA"
+    panel_line_color "$AQUA" "${AQUA}${BOLD}▣ INFORMAÇÕES DA VPS${NC}"
+    panel_line_color "$AQUA" "${WHITE}OS       :${NC} $(panel_os)"
+    panel_line_color "$AQUA" "${WHITE}HOST     :${NC} ${HOST}"
+    panel_line_color "$AQUA" "${WHITE}IP       :${NC} $(panel_ip)"
+    panel_line_color "$AQUA" "${WHITE}DOMÍNIO  :${NC} ${DOMAIN}"
+    panel_line_color "$AQUA" "${WHITE}CPU USAGE:${NC} $(panel_cpu)"
+    panel_line_color "$AQUA" "${WHITE}RAM      :${NC} $(panel_ram)"
+    panel_line_color "$AQUA" "${WHITE}USUÁRIOS :${NC} $(panel_users)"
+    panel_bottom_color "$AQUA"
     echo ""
 
-    box_top
-    show_panel_group "GESTÃO DE PORTAS E SERVIÇOS" "$AQUA"
-    box_line "${WHITE}01${NC}  ${GREEN}Configurar / abrir portas${NC}"
-    box_line "${WHITE}02${NC}  ${GREEN}Fechar porta aberta${NC}"
-    box_line "${WHITE}03${NC}  ${GREEN}Reiniciar porta${NC}"
-    box_line "${WHITE}04${NC}  ${GREEN}XHTTP + túnel SSL${NC}"
-    box_line "${WHITE}05${NC}  ${GREEN}Protocolo integrado${NC}"
-    box_mid
-    show_panel_group "PAINEL E CONFIGURAÇÕES" "$YELLOW"
-    box_line "${WHITE}06${NC}  ${GREEN}Atualizar pelo GitHub${NC}"
-    box_line "${WHITE}07${NC}  ${GREEN}Status / multiprotocolo / HCR${NC}"
-    box_line "${WHITE}09${NC}  ${GREEN}Idioma do painel${NC}"
-    box_bottom
+    panel_top_color "$AQUA"
+    panel_line_color "$AQUA" "${AQUA}${BOLD}⚙ GESTÃO DE PORTAS E SERVIÇOS${NC}"
+    panel_line_color "$AQUA" "${WHITE}01${NC}  ${GREEN}Configurar / abrir portas${NC}"
+    panel_line_color "$AQUA" "${WHITE}02${NC}  ${GREEN}Fechar porta aberta${NC}"
+    panel_line_color "$AQUA" "${WHITE}03${NC}  ${GREEN}Reiniciar porta${NC}"
+    panel_line_color "$AQUA" "${WHITE}04${NC}  ${GREEN}XHTTP + túnel SSL${NC}"
+    panel_line_color "$AQUA" "${WHITE}05${NC}  ${GREEN}Protocolo integrado${NC}"
+    panel_mid_color "$AQUA"
+    panel_line_color "$AQUA" "${YELLOW}${BOLD}⚙ PAINEL E CONFIGURAÇÕES${NC}"
+    panel_line_color "$AQUA" "${WHITE}06${NC}  ${GREEN}Atualizar pelo GitHub${NC}"
+    panel_line_color "$AQUA" "${WHITE}07${NC}  ${GREEN}Status / multiprotocolo / HCR${NC}"
+    panel_line_color "$AQUA" "${WHITE}09${NC}  ${GREEN}Idioma do painel${NC}"
+    panel_bottom_color "$AQUA"
     echo ""
 
-    box_top
-    box_line "${AQUA}${BOLD}▣ STATUS DOS SERVIÇOS${NC}"
-    box_line "$(panel_service_state SSH ssh.service)  $(panel_service_state HCR "$HCR_SERVICE")"
-    box_line "$(panel_proxy_state)  $(panel_multi_state)"
-    box_line "$(panel_service_state XHTTP proxy-443.service)  $(panel_service_state INTEGR proxy-integrated.service)"
-    box_line "${WHITE}PORTAS   :${NC} $(panel_ports_plain)"
-    box_bottom
+    panel_top_color "$CYAN"
+    panel_line_color "$CYAN" "${CYAN}${BOLD}▣ STATUS DOS SERVIÇOS${NC}"
+    panel_line_color "$CYAN" "$(panel_service_state SSH ssh.service)  $(panel_service_state HCR "$HCR_SERVICE")"
+    panel_line_color "$CYAN" "$(panel_proxy_state)  $(panel_multi_state)"
+    panel_line_color "$CYAN" "$(panel_service_state XHTTP proxy-443.service)  $(panel_service_state INTEGR proxy-integrated.service)"
+    panel_line_color "$CYAN" "${WHITE}PORTAS   :${NC} $(panel_ports_plain)"
+    panel_bottom_color "$CYAN"
     echo ""
 
-    box_top
-    box_line "${RED}08  Lixeira  Desinstalar Azpro${NC}"
-    box_line "${WHITE}00  Sair do painel${NC}"
-    box_bottom
+    panel_top_color "$RED"
+    panel_line_color "$RED" "${RED}08  Lixeira  Desinstalar Azpro${NC}"
+    panel_line_color "$RED" "${WHITE}00  Sair do painel${NC}"
+    panel_bottom_color "$RED"
     echo ""
     echo -ne "${MAGENTA}›${NC} $(language_text choose "$LANGUAGE") ${LIGHT_GREEN}"
 }
 
 while true; do
     show_menu
-    read OPTION
+    read -r OPTION
+    OPTION=$(printf '%s' "$OPTION" | tr -d '\r' | sed 's/[[:space:]]//g')
     case $OPTION in
         01|1) configure_ports ;;
         02|2) close_port ;;
