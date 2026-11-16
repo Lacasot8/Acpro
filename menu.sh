@@ -271,7 +271,7 @@ box_bottom() {
 }
 
 show_banner() {
-    :
+    echo -e "${CYAN}${BOLD}A Z P R O  P R O T O C O L O  F R E E${NC}"
 }
 
 has_any_multiprotocol_enabled() {
@@ -1973,6 +1973,8 @@ show_menu() {
     [[ "$DOMAIN" == "$HOST" ]] && DOMAIN="não configurado"
     clear
 
+    show_banner
+    echo ""
     panel_top_color "$AQUA"
     panel_line_color "$AQUA" "${AQUA}${BOLD}▣ INFORMAÇÕES DA VPS${NC}"
     panel_line_color "$AQUA" "${WHITE}OS       :${NC} $(panel_os)"
