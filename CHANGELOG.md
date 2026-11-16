@@ -3,6 +3,7 @@
 ## Próxima versão - HCR na opção 7/H
 
 ### Corrigido
+- Reforçada a separação entre HCR e multiprotocolo: a tecla `H` usa exclusivamente `hcr-<porta>.enabled`, enquanto o dispatcher só é ativado pelo item numérico da opção 7. O binário também deixa explícito no log de inicialização quando o modo multiprotocolo está realmente ativo.
 - Quando HCR está ativo sem multiprotocolo, a porta agora encaminha diretamente ao backend HCR oficial; isso corrige o uso do HCR independente na porta 80 sem ativar a opção 7 automaticamente.
 - A dependência da porta HCR usa `Requires=` e é reaplicada na inicialização do menu, mantendo as portas HCR vinculadas ao `hcr-8880.service` após reinícios.
 - A detecção de frames HCR fragmentados em redes móveis passou a aguardar até 8 segundos quando o multiprotocolo também está ativo.

@@ -35,7 +35,7 @@ async fn main() -> Result<(), Error> {
     let tls_enabled = has_arg("-t") || !has_arg("--no-tls");
     let quic_port = get_quic_port();
 
-    println!("[Azpro] Proxy TCP multiprotocolo v2.6.0");
+    println!("[Azpro] Proxy TCP v2.6.0");
     println!("[TCP] Porta: {}", port);
     if multiprotocol_enabled {
         println!(
@@ -557,6 +557,21 @@ mod tests {
         std::fs::write(directory.join("hcr-80.enabled"), b"").unwrap();
         assert!(hcr_enabled_in(80, &directory));
         assert!(!hcr_enabled_in(443, &directory));
+        std::fs::remove_dir_all(Path::new(&directory)).unwrap();
+    }
+    #[test]
+    fn hcr_marker_alone_does_not_enable_multiprotocol() {
+        let unique = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let directory = std::env::temp_dir().join(format!("azpro-hcr-only-{unique}"));
+        std::fs::create_dir_all(&directory).unwrap();
+        std::fs::write(directory.join("hcr-8080.enabled"), b"").unwrap();
+
+        assert!(hcr_enabled_in(8080, &directory));
+        assert!(!multiprotocol_enabled_in(8080, &directory));
+
         std::fs::remove_dir_all(Path::new(&directory)).unwrap();
     }
 
