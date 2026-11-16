@@ -1880,8 +1880,14 @@ panel_cpu() {
     local LOAD CORES PERCENT
     LOAD=$(awk '{print $1}' /proc/loadavg 2>/dev/null)
     CORES=$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 1)
-    PERCENT=$(awk -v load="${LOAD:-0}" -v cores="${CORES:-1}" 'BEGIN { printf "%.1f%%", (load / cores) * 100 }')
-    printf '%s' "$PERCENT"
+    PERCENT=$(awk -v loadavg="${LOAD:-0}" -v cores="${CORES:-1}" 'BEGIN {
+        value=(loadavg / cores) * 100; if (value < 0) value=0; if (value > 100) value=100; printf "%.1f", value
+    }')
+    awk -v value="$PERCENT" 'BEGIN {
+        filled=int(value/10); printf "[";
+        for (i=1; i<=10; i++) printf (i<=filled ? "#" : ".");
+        printf "] %.1f%%", value;
+    }'
 }
 
 panel_ram() {
@@ -1934,7 +1940,7 @@ panel_ports_plain() {
 
 show_panel_group() {
     local TITLE="$1" COLOR="$2"
-    box_line "${COLOR}┌─ ${TITLE} ─┐${NC}"
+    box_line "${COLOR}${BOLD}${TITLE}${NC}"
 }
 
 show_menu() {
@@ -1956,7 +1962,7 @@ show_menu() {
     box_line "${WHITE}HOST     :${NC} ${HOST}"
     box_line "${WHITE}IP       :${NC} $(panel_ip)"
     box_line "${WHITE}DOMÍNIO  :${NC} ${DOMAIN}"
-    box_line "${WHITE}CPU      :${NC} $(panel_cpu)"
+    box_line "${WHITE}CPU USAGE:${NC} $(panel_cpu)"
     box_line "${WHITE}RAM      :${NC} $(panel_ram)"
     box_line "${WHITE}USUÁRIOS :${NC} $(panel_users)"
     box_bottom
