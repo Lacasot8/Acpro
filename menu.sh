@@ -246,28 +246,28 @@ box_line() {
     visible_len=$(strip_len "$content")
     local pad=$(( BOX_WIDTH - visible_len ))
     [ $pad -lt 0 ] && pad=0
-    echo -ne "${CYAN}║${NC} "
+    echo -ne "${CYAN}│${NC} "
     echo -ne "${content}"
     printf '%*s' "$pad" ''
-    echo -e " ${CYAN}║${NC}"
+    echo -e " ${CYAN}│${NC}"
 }
 
 box_top() {
-    printf "${CYAN}╔"
-    printf '═%.0s' $(seq 1 $((BOX_WIDTH + 2)))
-    printf "╗${NC}\n"
+    printf "${CYAN}╭"
+    printf '─%.0s' $(seq 1 $((BOX_WIDTH + 2)))
+    printf "╮${NC}\n"
 }
 
 box_mid() {
-    printf "${CYAN}╠"
-    printf '═%.0s' $(seq 1 $((BOX_WIDTH + 2)))
-    printf "╣${NC}\n"
+    printf "${CYAN}├"
+    printf '─%.0s' $(seq 1 $((BOX_WIDTH + 2)))
+    printf "┤${NC}\n"
 }
 
 box_bottom() {
-    printf "${CYAN}╚"
-    printf '═%.0s' $(seq 1 $((BOX_WIDTH + 2)))
-    printf "╝${NC}\n"
+    printf "${CYAN}╰"
+    printf '─%.0s' $(seq 1 $((BOX_WIDTH + 2)))
+    printf "╯${NC}\n"
 }
 
 show_banner() {
