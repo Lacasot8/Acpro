@@ -271,7 +271,7 @@ box_bottom() {
 }
 
 show_banner() {
-    echo -e "${MAGENTA}${BOLD}★ AZPRO PROTOCOLO • MENU PANEL ★${NC}"
+    :
 }
 
 has_any_multiprotocol_enabled() {
@@ -1972,12 +1972,6 @@ show_menu() {
     DOMAIN=$(hostname -f 2>/dev/null || true)
     [[ "$DOMAIN" == "$HOST" ]] && DOMAIN="não configurado"
     clear
-
-    panel_top_color "$MAGENTA"
-    panel_line_color "$MAGENTA" "${MAGENTA}${BOLD}★ AZPRO VPS PREMIUM • PROXY PANEL ★${NC}"
-    panel_line_color "$MAGENTA" "${AQUA}[ Azpro • HCR • MultiProtocol ]${NC}"
-    panel_bottom_color "$MAGENTA"
-    echo ""
 
     panel_top_color "$AQUA"
     panel_line_color "$AQUA" "${AQUA}${BOLD}▣ INFORMAÇÕES DA VPS${NC}"
