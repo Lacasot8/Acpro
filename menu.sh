@@ -1200,7 +1200,7 @@ configure_hcr_proxy_dependency() {
         mkdir -p "$DROPIN_DIR" || return 1
         cat > "$DROPIN_FILE" <<EOF
 [Unit]
-Wants=${HCR_SERVICE}
+Requires=${HCR_SERVICE}
 After=${HCR_SERVICE}
 EOF
     else
@@ -2018,6 +2018,9 @@ show_menu() {
     echo ""
     echo -ne "${MAGENTA}›${NC} $(language_text choose "$LANGUAGE") ${LIGHT_GREEN}"
 }
+
+ # Reaplica drop-ins HCR de portas já habilitadas após atualização ou reboot.
+hcr_reconcile_proxy_dependencies
 
 while true; do
     show_menu

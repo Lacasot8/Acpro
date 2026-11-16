@@ -148,7 +148,9 @@ pub async fn detect_from_stream(stream: &TcpStream) -> io::Result<Protocol> {
 /// primeiro byte que não possa ser HCR.
 pub async fn detect_hcr_only(stream: &TcpStream) -> io::Result<bool> {
     let mut buffer = [0u8; HCR_HEADER_SIZE];
-    let result = timeout(Duration::from_secs(3), async {
+    // Em redes móveis o cabeçalho HCR pode chegar em vários segmentos com
+    // pausas maiores; não classificar cedo demais como tráfego comum.
+    let result = timeout(Duration::from_secs(8), async {
         loop {
             let bytes_peeked = stream.peek(&mut buffer).await?;
             if bytes_peeked == 0 {
