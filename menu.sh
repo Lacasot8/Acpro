@@ -271,12 +271,7 @@ box_bottom() {
 }
 
 show_banner() {
-    local TITLE="A Z P R O  P R O T O C O L O  F R E E" PADDING SEPARATOR
-    printf -v PADDING '%*s' "$(((BOX_WIDTH + 4 - ${#TITLE}) / 2))" ''
-    printf -v SEPARATOR '%*s' "$((BOX_WIDTH + 4))" ''
-    SEPARATOR=${SEPARATOR// /-}
-    echo -e "${CYAN}${BOLD}${PADDING}${TITLE}${NC}"
-    echo -e "${BLUE}${BOLD}${SEPARATOR}${NC}"
+    echo -e "${MAGENTA}${BOLD}★ AZPRO PROTOCOLO • MENU PANEL ★${NC}"
 }
 
 has_any_multiprotocol_enabled() {
@@ -1077,15 +1072,16 @@ open_xhttp() {
 open_integrated() {
     local LANGUAGE="$(get_language)"
     clear
-    echo -e "${CYAN}+--------------------------------------------------------+${NC}"
-    echo -e "${CYAN}+--------------------------------------------------------+${NC}"
-    echo -e "${WHITE}|  $(language_text integrated_title "$LANGUAGE")                       |${NC}"
-    echo -e "${CYAN}+--------------------------------------------------------+${NC}"
-    echo -e "${WHITE}|  $(language_text port_label "$LANGUAGE") 8000                                      |${NC}"
-    echo -e "${WHITE}|  $(language_text subnet_label "$LANGUAGE") 10.10.0.0/16                         |${NC}"
-    echo -e "${WHITE}|  $(language_text tun_label "$LANGUAGE") tun0                                    |${NC}"
-    echo -e "${WHITE}|  $(language_text protocols_label "$LANGUAGE") tcp:8000,udp:8000,quic:8001  |${NC}"
-    echo -e "${CYAN}+--------------------------------------------------------+${NC}"
+    show_banner
+    echo ""
+    panel_top_color "$YELLOW"
+    panel_line_color "$YELLOW" "${YELLOW}${BOLD}⚙ PROTOCOLO INTEGRADO${NC}"
+    panel_line_color "$YELLOW" "${WHITE}Porta     :${NC} 8000"
+    panel_line_color "$YELLOW" "${WHITE}Sub-rede  :${NC} 10.10.0.0/16"
+    panel_line_color "$YELLOW" "${WHITE}Interface :${NC} tun0"
+    panel_line_color "$YELLOW" "${WHITE}Protocolos:${NC} tcp:8000, udp:8000, quic:8001"
+    panel_bottom_color "$YELLOW"
+    echo ""
     read -p "$(language_text port_label "$LANGUAGE") (Enter para manter [8000]): " PORT
     [[ -z "$PORT" ]] && PORT="8000"
     read -p "$(language_text subnet_label "$LANGUAGE") CIDR (Enter para manter [10.10.0.0/16]): " SUBNET
@@ -1536,15 +1532,14 @@ manage_special_service() {
         clear
         show_banner
         echo ""
-        box_top
-        box_line "${WHITE}${BOLD}${TITLE}${NC}"
-        box_mid
-        box_line "${WHITE}[01]${NC} - ABRIR / CONFIGURAR"
-        box_line "${YELLOW}[02]${NC} - REINICIAR PORTA"
-        box_line "${RED}[03]${NC} - FECHAR PORTA"
-        box_mid
-        box_line "${WHITE}[00]${NC} - VOLTAR"
-        box_bottom
+        panel_top_color "$AQUA"
+        panel_line_color "$AQUA" "${AQUA}${BOLD}${TITLE}${NC}"
+        panel_line_color "$AQUA" "${WHITE}01${NC}  Abrir / configurar"
+        panel_line_color "$AQUA" "${YELLOW}02${NC}  Reiniciar porta"
+        panel_line_color "$AQUA" "${RED}03${NC}  Fechar porta"
+        panel_mid_color "$AQUA"
+        panel_line_color "$AQUA" "${WHITE}00${NC}  Voltar"
+        panel_bottom_color "$AQUA"
         echo ""
         read -r -p "Escolha uma opção: " ACTION
 
