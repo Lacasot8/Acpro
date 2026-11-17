@@ -7,6 +7,7 @@ const MAX_PEEK: usize = 16 * 1024;
 const DETECT_TIMEOUT: Duration = Duration::from_millis(800);
 const HCR_HEADER_SIZE: usize = 62;
 const HCR_MAX_PAYLOAD: u32 = 262_144;
+const HCR_FIRST_BYTE_TIMEOUT: Duration = Duration::from_millis(500);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Protocol {
@@ -141,15 +142,24 @@ pub async fn detect_from_stream(stream: &TcpStream) -> io::Result<Protocol> {
     }
 }
 
-/// Detecta HCR sem envolver a classificação dos demais protocolos. É usado
-/// quando a opção H está ativa em uma porta sem multiprotocolo. O cliente HCR
-/// pode entregar os 62 bytes do cabeçalho em vários pacotes em redes móveis;
-/// por isso aguardamos o cabeçalho completo, mas rejeitamos imediatamente um
-/// primeiro byte que não possa ser HCR.
+/// Detecta HCR sem bloquear o handshake HTTP da opção 1. O HTTP Injector
+/// espera o primeiro `101` do servidor antes de enviar o payload; por isso há
+/// uma janela curta para o primeiro byte HCR. Se nenhum byte chegar nessa
+/// janela, a conexão segue imediatamente para o protocolo normal da porta.
+/// Depois de reconhecer um prefixo HCR válido, aguardamos o cabeçalho completo
+/// para aceitar fragmentação em redes móveis.
 pub async fn detect_hcr_only(stream: &TcpStream) -> io::Result<bool> {
     let mut buffer = [0u8; HCR_HEADER_SIZE];
-    // Em redes móveis o cabeçalho HCR pode chegar em vários segmentos com
-    // pausas maiores; não classificar cedo demais como tráfego comum.
+    let first_byte = match timeout(HCR_FIRST_BYTE_TIMEOUT, stream.peek(&mut buffer[..1])).await {
+        Ok(Ok(bytes)) if bytes > 0 => buffer[0],
+        Ok(Ok(_)) | Ok(Err(_)) | Err(_) => return Ok(false),
+    };
+    if !(1..=6).contains(&first_byte) {
+        return Ok(false);
+    }
+
+    // Só os opcodes HCR entram na espera fragmentada. HTTP, TLS e SSH não
+    // passam por este caminho e preservam o tempo de resposta da opção 1.
     let result = timeout(Duration::from_secs(8), async {
         loop {
             let bytes_peeked = stream.peek(&mut buffer).await?;

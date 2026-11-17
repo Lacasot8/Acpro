@@ -120,7 +120,10 @@ async fn handle_client_protocol(
 ) -> Result<(), Error> {
     // A tecla H só adiciona o reconhecimento de frames HCR. Tráfego que não
     // for HCR continua no modo escolhido para a porta, sem ligar o dispatcher.
-    if hcr_enabled && protocol::detect_hcr_only(&client_stream).await? {
+    // Com o multiprotocolo ligado, o dispatcher já detecta HCR. Fora dele,
+    // detecte apenas um frame HCR real; tráfego normal deve seguir direto
+    // para o handshake HTTP da opção 1.
+    if hcr_enabled && !multiprotocol_enabled && protocol::detect_hcr_only(&client_stream).await? {
         println!("[HCR] Frame detectado; encaminhando ao servidor oficial");
         return tls::handle_hcr(client_stream)
             .await
