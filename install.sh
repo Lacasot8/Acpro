@@ -137,6 +137,10 @@ pkill -f '^/opt/mpro/proxy-xhttp([[:space:]]|$)' > /dev/null 2>&1 || true
 pkill -f '^/opt/mpro/proxy-integrated([[:space:]]|$)' > /dev/null 2>&1 || true
 sleep 1
 
+# O estado do multiprotocolo é por porta. Remova o marcador global usado por
+# versões antigas para que uma atualização nunca reative o dispatcher sozinho.
+rm -f -- /opt/mpro/multiprotocol.enabled
+
 # Copiar com força (-f)
 cp -f "$CARGO_TARGET_DIR/release/mpro" /opt/mpro/proxy || log_error "Falha ao copiar mpro. Verifique se o disco está cheio."
 chmod +x /opt/mpro/proxy

@@ -282,6 +282,17 @@ has_any_multiprotocol_enabled() {
     return 1
 }
 
+# Versões antigas usavam um único marcador global. Ele não deve mais controlar
+# nenhuma porta: o estado atual é exclusivamente multiprotocol-<porta>.enabled.
+# Remover o marcador antigo evita que uma instalação atualizada pareça ativa
+# quando a opção 7 está desligada.
+migrate_legacy_multiprotocol_state() {
+    if [[ -f "$LEGACY_MULTIPROTOCOL_FLAG" ]]; then
+        rm -f -- "$LEGACY_MULTIPROTOCOL_FLAG" ||
+            echo -e "${YELLOW}Aviso: não foi possível remover o marcador global legado do multiprotocolo.${NC}" >&2
+    fi
+}
+
 has_active_azpro_service() {
     local SERVICE_FILE SERVICE
     for SERVICE_FILE in "${SYSTEMD_DIR}"/proxy-*.service; do
@@ -2018,6 +2029,8 @@ show_menu() {
     echo ""
     echo -ne "${MAGENTA}›${NC} $(language_text choose "$LANGUAGE") ${LIGHT_GREEN}"
 }
+
+migrate_legacy_multiprotocol_state
 
  # Reaplica drop-ins HCR de portas já habilitadas após atualização ou reboot.
 hcr_reconcile_proxy_dependencies
