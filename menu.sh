@@ -1310,7 +1310,7 @@ manage_hcr_support() {
         show_banner
         echo ""
         box_top
-        box_line "${WHITE}${BOLD}SUPORTE MULTIPROTOCOLO HCR${NC}"
+        box_line "${WHITE}${BOLD}SUPORTE HCR INDEPENDENTE POR PORTA${NC}"
         box_mid
         if ((${#ACTIVE_PORTS[@]} == 0)); then
             box_line "${YELLOW}Nenhuma porta Azpro ativa.${NC}"
@@ -1379,7 +1379,7 @@ manage_multiprotocol() {
             done
         fi
         box_mid
-        box_line "${WHITE}[H]${NC} - ATIVAR SUPORTE AO HCR"
+        box_line "${WHITE}[H]${NC} - ATIVAR/DESATIVAR HCR (SEM MULTIPROTOCOLO)"
         box_line "${WHITE}[00]${NC} - $(language_text back "$LANGUAGE")"
         box_bottom
         echo ""
